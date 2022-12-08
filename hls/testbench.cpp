@@ -1,5 +1,6 @@
 
 
+#include <direct.h> //所需的库文件
 #include <ap_int.h>
 #include <hls_stream.h>
 #include <cmath>
@@ -11,7 +12,7 @@
 #define grid_row 10
 #define grid_col 20
 #define div 15*7
-#define BS 2
+#define BS 1
 
 using namespace hls;
 using namespace std;
@@ -23,6 +24,11 @@ void load_data(const char *path, char *ptr, unsigned int size)
     ifstream f(path, ios::in | ios::binary);
     if (!f)
     {
+    	char *buffer;
+    	buffer = getcwd(NULL, 0);
+    	printf("current path:%s\n", buffer);
+    	printf("data path:%s\n", path);
+
         cout << "no such file,please check the file name!/n";
         exit(0);
     }
@@ -48,19 +54,22 @@ int main(int argc, char const *argv[])
 	const char* img_path[] = { "./test_img/img0.bin"};
 
 	uint8_t img[BS][360][640][3];
-	for (unsigned int n = 0; n < BS; n++)
-    	load_data(img_path[n], (char *) img[n], (sizeof(img)/BS));
+	for (unsigned int n = 0; n < BS; n++) {
+//		printf("in param: %s", img_path[n]);
+		load_data(img_path[n], (char *) img[n], (sizeof(img)/BS));  // read image data from binary files. [bs, h, w, c]
+	}
+
 
     uint8_t * data = (uint8_t *) img;
-    const int data_points_per_line = 8;       
-    const int nums_line_per_img = 360 * 640 * 3 / 8;
+    const int data_points_per_line = 8;  // convert image data(8 bit) to axi data(64 bit), we need 8 data points
+    const int nums_line_per_img = 360 * 640 * 3 / 8;  // how many my_ap_axis data we need
 
     stream<my_ap_axis> input_stream("input stream");
     for (unsigned int n = 0; n < BS; n++)
 		for (unsigned int i = 0; i < nums_line_per_img; i++) {
 			my_ap_axis temp;
-			for (unsigned int j = 0; j < data_points_per_line; j++) {
-				temp.data( 8*(j+1)-1, 8*j ) = data[n * 360 * 640 * 3 + i * data_points_per_line + j];
+			for (unsigned int j = 0; j < data_points_per_line; j++) {  // data width converter, convert 8 bit data to 64 bit
+				temp.data( 8*(j+1)-1, 8*j ) = data[n * 360 * 640 * 3 + i * data_points_per_line + j];  // last, keep not used here
 			}
 			input_stream.write(temp);
 		}

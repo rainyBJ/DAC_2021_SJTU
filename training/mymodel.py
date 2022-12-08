@@ -38,9 +38,9 @@ class YOLOLayer(nn.Module):
             create_grids(self, img_size, (nx, ny), p.device, p.dtype)
 
         # p.view(bs, 255, 13, 13) -- > (bs, 3, 13, 13, 85)  # (bs, anchors, grid, grid, classes + xywh)
-        p = p.view(bs, self.na, self.no, self.ny, self.nx).permute(0, 1, 3, 4, 2).contiguous()  # prediction
+        p = p.view(bs, self.na, self.no, self.ny, self.nx).permute(0, 1, 3, 4, 2).contiguous()  # [bs, #anchors, H, W, #preds]
 
-        if self.training:
+        if self.training:  # training mode
             return p
 
         else:  # inference
@@ -55,7 +55,7 @@ class YOLOLayer(nn.Module):
             torch.sigmoid_(io[..., 4:])
             
             
-            return io.view(bs, -1, self.no), p
+            return io.view(bs, -1, self.no), p  # [bs, n(#anchors*h*w), 6]
 
 
 class ReorgLayer(nn.Module):
@@ -136,14 +136,14 @@ class UltraNet_Bypass(nn.Module):
             # nn.Conv2d(256, 18, kernel_size=1, stride=1, padding=0)
             conv2d_q(64, 36, kernel_size=1, stride=1, padding=0)
         )
-        self.yololayer = YOLOLayer([[20, 20], [20, 20], [20, 20], [20, 20], [20, 20], [20, 20]])
+        self.yololayer = YOLOLayer([[20, 20], [20, 20], [20, 20], [20, 20], [20, 20], [20, 20]])  # 6 anchors x 6 predictions
         self.yolo_layers = [self.yololayer]
 
     def forward(self, x):
         img_size = x.shape[-2:]
         yolo_out, out = [], []
 
-        x_p1 = self.layers_p1(x)
+        x_p1 = self.layers_p1(x)  # [bs, c, h, w]
         x_p2 = self.layers_p2(x_p1)
         x_p2_reorg = self.reorg(x_p2)
         x_p3 = self.layers_p3(x_p2)
@@ -158,7 +158,7 @@ class UltraNet_Bypass(nn.Module):
             return yolo_out
         else:  # test
             io, p = zip(*yolo_out)  # inference output, training output
-            return torch.cat(io, 1), p
+            return torch.cat(io, 1), p  # concat at #predictions
         return x
 
 
@@ -216,7 +216,7 @@ class UltraNet_Bypass_k(nn.Module):
             activation_quantize_fn(A_BIT),
 
             # nn.Conv2d(256, 18, kernel_size=1, stride=1, padding=0)
-            conv2d_q(64, 36, kernel_size=1, stride=1, padding=0)
+            conv2d_q(64, 36, kernel_size=1, stride=1, padding=0)  # 最后一层，使用 conv 实现 linear 的效果
         )
         self.yololayer = YOLOLayer([[4, 11], [8, 28], [12, 48], [20, 33], [18, 69], [35, 91]])
         self.yolo_layers = [self.yololayer]

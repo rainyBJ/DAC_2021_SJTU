@@ -334,9 +334,9 @@ def box_iou(boxes1, boxes2):
 
 def wh_iou(wh1, wh2):
     # Returns the nxm IoU matrix. wh1 is nx2, wh2 is mx2
-    wh1 = wh1[:, None]  # [N,1,2]
+    wh1 = wh1[:, None]  # [N,1,2]  None 可以在所在维度上多一维度
     wh2 = wh2[None]  # [1,M,2]
-    inter = torch.min(wh1, wh2).prod(2)  # [N,M]
+    inter = torch.min(wh1, wh2).prod(2)  # [N,M] torch.min()之后得到 [N, M, 2] .prod() 将指定维度所有元素相乘
     return inter / (wh1.prod(2) + wh2.prod(2) - inter)  # iou = inter / (area1 + area2 - inter)
 
 
@@ -366,14 +366,14 @@ class FocalLoss(nn.Module):
 def compute_loss(p, targets, model, giou_flag=True):  # predictions, targets, model
     ft = torch.cuda.FloatTensor if p[0].is_cuda else torch.Tensor
     lcls, lbox, lobj = ft([0]), ft([0]), ft([0])
-    tcls, tbox, indices, anchor_vec = build_targets(model, targets)
+    tcls, tbox, indices, anchor_vec = build_targets(model, targets)  # get useful infos from targets
     h = model.hyp  # hyperparameters
     arc = model.arc  # # (default, uCE, uBCE) detection architectures
     red = 'mean'  # Loss reduction (sum or mean)
 
     # Define criteria
-    BCEcls = nn.BCEWithLogitsLoss(pos_weight=ft([h['cls_pw']]), reduction=red)
-    BCEobj = nn.BCEWithLogitsLoss(pos_weight=ft([h['obj_pw']]), reduction=red)
+    BCEcls = nn.BCEWithLogitsLoss(pos_weight=ft([h['cls_pw']]), reduction=red)  # loss for cls, pos_weight weight for positive examples
+    BCEobj = nn.BCEWithLogitsLoss(pos_weight=ft([h['obj_pw']]), reduction=red)  # # loss for obj
     BCE = nn.BCEWithLogitsLoss(reduction=red)
     CE = nn.CrossEntropyLoss(reduction=red)  # weight=model.class_weights
 
@@ -385,14 +385,14 @@ def compute_loss(p, targets, model, giou_flag=True):  # predictions, targets, mo
     np, ng = 0, 0  # number grid points, targets
     for i, pi in enumerate(p):  # layer index, layer predictions
         b, a, gj, gi = indices[i]  # image, anchor, gridy, gridx
-        tobj = torch.zeros_like(pi[..., 0])  # target obj
-        np += tobj.numel()
+        tobj = torch.zeros_like(pi[..., 0])  # target obj, [..., 0] 其他维度不变，在最后一个维度取第一个
+        np += tobj.numel()  # number of predictions
 
         # Compute losses
-        nb = len(b)
+        nb = len(b)  # number of gts
         if nb:  # number of targets
             ng += nb
-            ps = pi[b, a, gj, gi]  # prediction subset corresponding to targets
+            ps = pi[b, a, gj, gi]  # prediction subset corresponding to targets 像 zip 一样的操作，根据 96 个 index 取元素
             # ps[:, 2:4] = torch.sigmoid(ps[:, 2:4])  # wh power loss (uncomment)
 
             # GIoU
@@ -403,9 +403,9 @@ def compute_loss(p, targets, model, giou_flag=True):  # predictions, targets, mo
             # print(tbox[i].shape)
             giou = bbox_iou(pbox.t(), tbox[i], x1y1x2y2=False, CIoU=True)  # giou computation
 
-            # 直接用的iou
+            # 直接用的iou CIOU
             lbox += (1.0 - giou).sum() if red == 'sum' else (1.0 - giou).mean()  # giou loss
-            # 置信度目标值用的是giou
+            # 置信度目标值用的是giou 用CIOU做confidence指标
             tobj[b, a, gj, gi] = giou.detach().clamp(0).type(tobj.dtype) if giou_flag else 1.0
 
             if 'default' in arc and model.nc > 1:  # cls loss (only if multiple classes)
@@ -469,14 +469,14 @@ def build_targets(model, targets):
         ng, anchor_vec = i.ng, i.anchor_vec
         # iou of targets-anchors
         t, a = targets, []
-        gwh = t[:, 4:6] * ng
+        gwh = t[:, 4:6] * ng  # width & height for ground truth
         if nt:
-            iou = wh_iou(anchor_vec, gwh)
+            iou = wh_iou(anchor_vec, gwh)  # iou of ground truth & anchors, not used in here
 
-            if use_all_anchors:
+            if use_all_anchors:  # use all 6 anchors, so here we have [bs x #anchors] elements
                 na = len(anchor_vec)  # number of anchors
                 a = torch.arange(na).view((-1, 1)).repeat([1, nt]).view(-1)
-                t = targets.repeat([na, 1])
+                t = targets.repeat([na, 1])  # 在每一个维度分别重复多少次
                 gwh = gwh.repeat([na, 1])
             else:  # use best anchor only
                 iou, a = iou.max(0)  # best iou and anchor
@@ -489,22 +489,22 @@ def build_targets(model, targets):
         # Indices
         b, c = t[:, :2].long().t()  # target image, class
         gxy = t[:, 2:4] * ng  # grid x, y
-        gi, gj = gxy.long().t()  # grid x, y indices
-        indices.append((b, a, gj, gi))
+        gi, gj = gxy.long().t()  # grid x, y indices, .long() transfer a float num to a int one
+        indices.append((b, a, gj, gi))  # [batch_index, achor_index, h_grid_index, w_grid_index]
 
         # Box
-        gxy -= gxy.floor()  # xy
+        gxy -= gxy.floor()  # offset based on xy
         tbox.append(torch.cat((gxy, gwh), 1))  # xywh (grids)
-        av.append(anchor_vec[a])  # anchor vec
+        av.append(anchor_vec[a])  # index of anchors 0,2,...,5
 
         # Class
-        tcls.append(c)
+        tcls.append(c)  # single target here, always 0
         if c.shape[0]:  # if any targets
             assert c.max() < model.nc, 'Model accepts %g classes labeled from 0-%g, however you labelled a class %g. ' \
                                        'See https://github.com/ultralytics/yolov3/wiki/Train-Custom-Data' % (
                                            model.nc, model.nc - 1, c.max())
 
-    return tcls, tbox, indices, av
+    return tcls, tbox, indices, av  # target_cls, target_boxes(xywh), indices(b,a,h,w), anchor_indices
 
 
 def non_max_suppression(prediction, conf_thres=0.5, iou_thres=0.5, multi_cls=True, classes=None, agnostic=False):
@@ -934,7 +934,7 @@ def plot_images(imgs, targets, paths=None, fname='images.png'):
     fig = plt.figure(figsize=(10, 10))
     bs, _, h, w = imgs.shape  # batch size, _, height, width
     bs = min(bs, 16)  # limit plot to 16 images
-    ns = np.ceil(bs ** 0.5)  # number of subplots
+    ns = int(np.ceil(bs ** 0.5))  # number of subplots
 
     for i in range(bs):
         boxes = xywh2xyxy(targets[targets[:, 0] == i, 2:6]).T

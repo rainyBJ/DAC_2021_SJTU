@@ -211,10 +211,10 @@ void StreamingDataWidthConverter_Batch(stream<ap_uint<InWidth> > &in,
     } else { // InWidth < OutWidth, expand width
         // read multiple input words per output word emitted
         const unsigned int inPerOut = OutWidth / InWidth;
-        const unsigned int totalIters = NumInWords << reps;
+        const unsigned int totalIters = NumInWords << reps;  // #input data = # input data per image * batch size
         unsigned int i = 0;
         ap_uint<OutWidth> eo = 0;
-        for (unsigned int t = 0; t < totalIters; t++) {
+        for (unsigned int t = 0; t < totalIters; t++) {  // output = [[input0][input1][input3]] start with high position with right shift
 #pragma HLS PIPELINE II = 1
             // read input and shift into output buffer
             ap_uint<InWidth> ei = in.read();
@@ -261,7 +261,7 @@ void StreamCopy(stream<ap_uint<StreamW> > &in, stream<ap_uint<StreamW> > &out,
  * 2 parallel in, serial out
  * in0 = [in0_mn,...,in0_11,in0_10,in0_0n,...,in0_01,in0_00], in1 = [in1_mn,...,in1_11,in1_10,in1_0n,...,in1_01,in1_00]
  * out = [in1_mn,...,in0_11,in0_10,in1_0n,...,in1_01,in1_00,in0_0n,...,in0_01,in0_00]
- * n: IN_CH / IN_CH_PARA - 1, i.e. IN_CH_ITER - 1
+ * n: IN_CH / IN_CH_PARA - 1, i.e. IN_CH_ITER - 1. how many times of reading in data do we need for c_in.
  * m: #data/IN_CH_ITER - 1
  */
 template <unsigned StreamW, unsigned NumData, unsigned IN_CH_ITER> //NumData: number of input words to process (#words of one input stream)

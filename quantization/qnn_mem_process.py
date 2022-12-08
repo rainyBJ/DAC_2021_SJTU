@@ -14,10 +14,10 @@ def array_to_string(array, elem_bit):
             tmp2 = tmp
 
             if tmp < 0:
-                tmp2 = 2**(elem_bit) + tmp 
+                tmp2 = 2 ** (elem_bit) + tmp  # 得到补码
 
             tmp2 = int(tmp2)
-            tmp3 = tmp2 * 2**(elem_bit*i)
+            tmp3 = tmp2 * 2 ** (elem_bit * i)  # 左移拼接数据
             val = val + tmp3
         return val
 
@@ -84,14 +84,14 @@ class QNNLayerMemProcess:
         assert w.shape[0] % self.pe == 0, 'out_ch mod pe must 0'
         # w 矩阵的宽 其值 为 k * k * in_ch
         h = w.shape[1]
-        # res0 size = out_ch, k * k * in_ch // simd + (0 or 1)
+        # res0 [out_ch, k * k * in_ch // simd + (0 or 1)]
         res0 = [[0 for i in range(h // self.simd)] for j in range(w.shape[0])]
         for out_ch in range(w.shape[0]):
             for i in range(h // self.simd):
-                arr = w[out_ch][i*self.simd:(i+1)*self.simd]
+                arr = w[out_ch][i*self.simd:(i+1)*self.simd]  # 每 simd 个 c_in 为一组进行拼接
                 res0[out_ch][i] = array_to_string(arr, self.w_bit)
             
-        # 处理不够整除的部分
+        # 处理 c_in  维度上不够整除的部分
         if h % self.simd != 0:
             print('h mod simd != 0')
             for out_ch in range(w.shape[0]):
@@ -101,16 +101,16 @@ class QNNLayerMemProcess:
         # print('res0 = ', len(res0), len(res0[0]))
         # print(np.array(res0))
         
-        tiles = len(res0[0]) * (len(res0) // self.pe) 
+        tiles = len(res0[0]) * (len(res0) // self.pe)  # 以当前的并行度配置需要多少时钟周期处理
         self.w_tiles = tiles
         # print('tiles', tiles)
         res = [[0 for i in range(tiles)] for i in range(self.pe)]
 
         tiles_cnt = 0
-        for i in range(len(res0) // self.pe):
+        for i in range(len(res0) // self.pe):  # 多少组 pe
             for j in range(len(res0[0])):
 
-                for pe_cnt in range(self.pe):
+                for pe_cnt in range(self.pe):  # 某一组 pe 的 index，此循环填充一次 tile 的数据
                     res[pe_cnt][tiles_cnt] = res0[i * self.pe + pe_cnt][j]
                 tiles_cnt += 1  
         return res

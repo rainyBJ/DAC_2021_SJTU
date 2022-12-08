@@ -15,11 +15,11 @@ def generate_config(model, in_shape):
     pool_cnt = 0
     linear_cnt = 0
     # cnt = 0
-    for sub_module in model.modules():
+    for sub_module in model.modules():  # 改变网络中 FM shape 的有 conv/linea/pooing; BN 层不改变
         if type(sub_module).__base__ is torch.nn.Conv2d:
             conv_cur = {}
             conv_cur['in_shape'] = feature_map_shape[:]   
-            conv_cur['in_shape'][0] = sub_module.in_channels      
+            conv_cur['in_shape'][0] = sub_module.in_channels  # concat 之后作为 module 的输入，只考虑了 main branch，这时需要这一行
             feature_map_shape[0] = sub_module.out_channels
             feature_map_shape[1] = (feature_map_shape[1] + 2 * sub_module.padding[0] - sub_module.kernel_size[0]) // sub_module.stride[0] + 1
             feature_map_shape[2] = (feature_map_shape[2] + 2 * sub_module.padding[0] - sub_module.kernel_size[0]) // sub_module.stride[0] + 1
@@ -100,7 +100,7 @@ np.savez('ultranet_4w4a.npz', **dic)
 dic = generate_config(model, [3, 160, 320])
 print(dic)
 
-json_str = json.dumps(dic, indent=4)
+json_str = json.dumps(dic, indent=4)  # 将网络信息整理成 json 格式的文件
 with open('config.json' , 'w') as json_file:
     json_file.write(json_str)
 

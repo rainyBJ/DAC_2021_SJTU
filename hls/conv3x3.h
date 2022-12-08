@@ -111,7 +111,7 @@ void conv3x3_bn_act_L1(
 #pragma HLS DATAFLOW
 
     // size after padding
-	const unsigned INTER_ROW = IN_ROW + 2;
+	const unsigned INTER_ROW = IN_ROW + 2;  // row & col after padding
 	const unsigned INTER_COL = IN_COL + 2;
 	// P=1, S=1, K=3
 	const unsigned OUT_ROW = IN_ROW;

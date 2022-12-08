@@ -38,9 +38,9 @@ ap_uint<OUT_BIT> BN_QUReLU( ap_int<IN_BIT> in,
     ap_int<BN_BIT> bn_res = in * inc + bias;
 	ap_uint<OUT_BIT> res;
 
-// quantize to 2^N levels ∈ [0,1] with DoreFa Net && ReLU   
+// quantize to 2^N levels 鈭� [0,1] with DoreFa Net && ReLU
 	if (bn_res > 0) {
-		bn_res = (bn_res + (D >> 1)) >> (W_BIT - 1 + DATA_BIT + L_SHIFT);  
+		bn_res = (bn_res + (D >> 1)) >> (W_BIT - 1 + DATA_BIT + L_SHIFT);  // add a eps
 		if (bn_res > 15){
 			res = 15;
 		} else {
@@ -105,13 +105,13 @@ void padding(
 
 	for (unsigned rep = 0; rep < (1 << reps); rep++) {
 
-		for (unsigned h = 0; h < P; h++) {
+		for (unsigned h = 0; h < P; h++) {  // padding for the first line
 			for (unsigned s = 0; s < OUT_COL; s++) {
 				out.write(0);
 			}
 		}
 
-		for (unsigned h = 0; h < IN_ROW; h++) {
+		for (unsigned h = 0; h < IN_ROW; h++) {  // padding for intermediate lines
 			for ( unsigned s = 0; s < OUT_COL; s++ ) {
 #pragma HLS PIPELINE II=1
 
@@ -126,7 +126,7 @@ void padding(
 			}
 		}
 
-		for (unsigned h = 0; h < P; h++) {
+		for (unsigned h = 0; h < P; h++) {  // padding for the last line
 			for (unsigned s = 0; s < OUT_COL; s++) {
 				out.write(0);
 			}

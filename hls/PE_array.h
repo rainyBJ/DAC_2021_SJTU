@@ -5,6 +5,7 @@
 #include <ap_int.h>
 #include <hls_stream.h>
 #include "function.h"
+#include <bitset>
 
 using namespace hls;
 using namespace std;
@@ -33,9 +34,40 @@ ap_int<45>  _1D_PE_array(
 
 		ap_int<18>  weight_shrink = (ap_int<18>(temp_w1) << 11) + temp_w0; //two weights in one operand
         ap_uint<27> in_act_shrink = (ap_uint<27>(temp_in_act1) << 22) + temp_in_act0; //two in_acts in one operand
+//        cout << "index: " << p << endl;
+//        cout << "w1: " << temp_w1 << "; w0: " << temp_w0 << endl;
+//        cout << "a1: " << temp_in_act1 << "; a0: " << temp_in_act0 << endl;
+//        cout << "temp_w1_shifted: " << ap_int<18>(temp_w1) << 11 << endl;
+//        cout << "w_concat: " << bitset<18>(weight_shrink) << endl;
+//        cout << "a_concat: " << bitset<27>(in_act_shrink) << endl;
 
 		ap_int<45> result_shrink = weight_shrink * in_act_shrink;
+//		cout << "result: "  << result_shrink << endl;
+//		cout << bitset<45>(result_shrink) << endl;
 		accumulation_shrink += result_shrink;
+//		cout << "acc: "  << accumulation_shrink << endl;
+//		cout << bitset<45>(accumulation_shrink) << endl;
+
+		ap_int<11> tmp = 0;
+		tmp = result_shrink(43, 33);
+//		cout << "res_11: " << tmp << endl;
+//		tmp = result_shrink(32, 22);
+//		cout << "res_10: " << tmp << endl;
+//		tmp = result_shrink(21, 11);
+//		cout << "res_01: " << tmp << endl;
+//		tmp = result_shrink(10, 0);
+//		cout << "res_00: " << tmp << endl;
+
+		tmp = accumulation_shrink(43, 33);
+//		cout << "acc_11: " << tmp << endl;
+//		tmp = accumulation_shrink(32, 22);
+//		cout << "acc_10: " << tmp << endl;
+//		tmp = accumulation_shrink(21, 11);
+//		cout << "acc_01: " << tmp << endl;
+//		tmp = accumulation_shrink(10, 0);
+//		cout << "acc_00: " << tmp << endl;
+//
+//		cout << "----------" << endl;
 	}
 
     return accumulation_shrink;
@@ -126,20 +158,25 @@ void _2D_PE_array_act(
 #pragma HLS UNROLL
 
         // read weights
-        ap_uint<IN_CH_PARA*W_BIT> temp_weights0 = weights[2*i][index];
+        ap_uint<IN_CH_PARA*W_BIT> temp_weights0 = weights[2*i][index];  // read 2 weights
         ap_uint<IN_CH_PARA*W_BIT> temp_weights1 = weights[2*i+1][index];
 
         // 1D PE array and 4 MUL in 1 DSP
-        ap_int<45> acc_shrink = _1D_PE_array<W_BIT, IN_ACT_BIT, IN_CH_PARA>( temp_weights0, temp_weights1, temp_in_act0, temp_in_act1 );
+        ap_int<45> acc_shrink = _1D_PE_array<W_BIT, IN_ACT_BIT, IN_CH_PARA>( temp_weights0, temp_weights1, temp_in_act0, temp_in_act1 );  // 2 weights 2 activations, 4 mul in 1 DSP
         
         //shrink word extraction
-        ap_int<11> acc_temp_11 = acc_shrink(43, 33) + acc_shrink[32];  
+        ap_int<11> acc_temp_11 = acc_shrink(43, 33) + acc_shrink[32];  // TD: why the second term exists. need to do this to have accurate nums due to complement code.
+//        cout << "tmp_11: " << acc_temp_11 << endl;
         acc1[2*i+1] += acc_temp_11;        
-        ap_int<11> acc_temp_10 = acc_shrink(32, 22) + acc_shrink[21];  
+        ap_int<11> acc_temp_10 = acc_shrink(32, 22) + acc_shrink[21];
+//        cout << "tmp_10: " << acc_temp_10 << endl;
         acc1[2*i] += acc_temp_10;  
         ap_int<11> acc_temp_01 = acc_shrink(21, 11) + acc_shrink[10];  
+//        cout << "tmp_01: " << acc_temp_01 << endl;
         acc0[2*i+1] += acc_temp_01;
         ap_int<11> acc_temp_00 = acc_shrink(10, 0);  
+//        cout << "tmp_00: " << acc_temp_00 << endl;
+//        cout << "----------" << endl;
         acc0[2*i] += acc_temp_00;        
         }
 
@@ -203,7 +240,7 @@ ap_int<45>  _1D_PE_array_L1(
         ap_uint<IN_ACT_BIT> temp_in_act0 = in_act0((p+1)*IN_ACT_BIT-1, p*IN_ACT_BIT);
         ap_uint<IN_ACT_BIT> temp_in_act1 = in_act1((p+1)*IN_ACT_BIT-1, p*IN_ACT_BIT);
 
-        ap_uint<27> in_act_shrink = (ap_uint<27>(temp_in_act1) << 16) + temp_in_act0; //two in_acts in one operand
+        ap_uint<27> in_act_shrink = (ap_uint<27>(temp_in_act1) << 16) + temp_in_act0; //two in_acts in one operand. TD: dsp structure in FPGA. 16 bits for each mul.
 
 		ap_int<45> result_shrink = temp_w * in_act_shrink;
 		accumulation_shrink += result_shrink;
@@ -247,13 +284,13 @@ void _2D_PE_array_act_L1(
     ) 
 {
 
-    const unsigned IN_CH_ITER  = MAT_ROW/IN_CH_PARA;    // #IN_CH iteration x K x K
+    const unsigned IN_CH_ITER  = MAT_ROW/IN_CH_PARA;    // #IN_CH iteration x K x K im2col convert convolution to matmul
 	const unsigned OUT_CH_ITER = MAT_COL/OUT_CH_PARA;  //  #OUT_CH iteration
-    const unsigned total_iter  = (IN_CH_ITER * OUT_CH_ITER * OUT_ACT_NUMS / 2) << reps;  // #iteration of calculating 2^reps fmap_out
+    const unsigned total_iter  = (IN_CH_ITER * OUT_CH_ITER * OUT_ACT_NUMS / 2) << reps;  // #iteration of calculating 2^reps fmap_out. 2 mul in a dsp, also 2 data in from shift register.
 
     // in_buffer, store (2 x K x K x IN_CH) in_act for "data reuse"
     ap_uint<IN_CH_PARA*IN_ACT_BIT> in_buffer0[IN_CH_ITER];
-#pragma HLS RESOURCE variable=in_buffer0 core=RAM_S2P_BRAM
+#pragma HLS RESOURCE variable=in_buffer0 core=RAM_S2P_BRAM  // TD: what is RAM_S2P_BRAM
     ap_uint<IN_CH_PARA*IN_ACT_BIT> in_buffer1[IN_CH_ITER];
 #pragma HLS RESOURCE variable=in_buffer1 core=RAM_S2P_BRAM
 
@@ -265,12 +302,12 @@ void _2D_PE_array_act_L1(
     ap_uint<IN_CH_PARA*IN_ACT_BIT> temp_in_act1;
 
     ap_int<M_BIT> acc0[OUT_CH_PARA]; 
-    ap_int<M_BIT> acc1[OUT_CH_PARA];  //psum buffer 
+    ap_int<M_BIT> acc1[OUT_CH_PARA];  //psum buffer. accumulator fro mul and acc.
 
 	for (unsigned iter = 0; iter < total_iter; iter++){
 #pragma HLS PIPELINE II=1
 
-        // read data in the first iteration of OUT_CH_ITER, then reuse
+        // read data in the first iteration of OUT_CH_ITER, then reuse for all output kernels.
 		if (out_ch_iter_cnt == 0) {
 			temp_in_act0 = in_act0.read();
             temp_in_act1 = in_act1.read();
@@ -303,7 +340,7 @@ void _2D_PE_array_act_L1(
         ap_int<45> acc_shrink = _1D_PE_array_L1<W_BIT, IN_ACT_BIT, IN_CH_PARA>( temp_weights, temp_in_act0, temp_in_act1 );
         
         //shrink word extraction     
-        ap_int<16> acc_temp_1 = acc_shrink(31, 16) + acc_shrink[15];  
+        ap_int<16> acc_temp_1 = acc_shrink(31, 16) + acc_shrink[15];  // extract the 2 results
         acc1[i] += acc_temp_1;  
         ap_int<16> acc_temp_0 = acc_shrink(15, 0);  
         acc0[i] += acc_temp_0;        

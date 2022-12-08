@@ -58,14 +58,14 @@ def bbox_iou(box1, box2):
     return iou
 
 def get_boxes(pred_boxes, pred_conf):
-    n = pred_boxes.size(0)
+    n = pred_boxes.size(0)  # batch size
     # pred_boxes = pred_boxes.view(n, -1, 4)
     # pred_conf = pred_conf.view(n, -1, 1)
     FloatTensor = torch.cuda.FloatTensor if pred_boxes.is_cuda else torch.FloatTensor
     p_boxes = FloatTensor(n, 4)
     # print(pred_boxes.shape, pred_conf.shape)
 
-    for i in range(n):
+    for i in range(n):  # find the p_box with max confidence
         _, index = pred_conf[i].max(0)
         p_boxes[i] = pred_boxes[i][index]
 
@@ -150,21 +150,21 @@ def test(cfg,
             if hasattr(model, 'hyp'):  # if model has loss hyperparameters
                 loss += compute_loss(train_out, targets, model)[1][:3].cpu()  # GIoU, obj, cls
 
-            inf_out = inf_out.view(inf_out.shape[0], 6, -1)
+            inf_out = inf_out.view(inf_out.shape[0], 6, -1)  # [bs, #anchors, w*h*6]
             # ft = torch.cuda.FloatTensor if p[0].is_cuda else torch.Tensor
-            inf_out_t = torch.zeros_like(inf_out[:, 0, :])
+            inf_out_t = torch.zeros_like(inf_out[:, 0, :])  # 综合 6 个 anchor 的预测
             for i in range(inf_out.shape[1]):
                inf_out_t += inf_out[:, i, :]
             inf_out_t = inf_out_t.view(inf_out_t.shape[0], -1, 6) / 6
 
 
-            pre_box = get_boxes(inf_out_t[..., :4], inf_out_t[..., 4])
+            pre_box = get_boxes(inf_out_t[..., :4], inf_out_t[..., 4])  # 相当于预测的最后一个维度没有用
             # pre_box = get_boxes(inf_out[..., :4], inf_out[..., 4])
             tbox = targets[..., 2:6] * torch.Tensor([width, height, width, height]).to(device)
 
             # print(pre_box.shape, tbox.shape)
             ious = bbox_iou(pre_box, tbox)
-            iou_sum += ious.sum()
+            iou_sum += ious.sum().cpu()
             for iou in ious:
                 if iou > 0.5:
                     num += 1
@@ -177,7 +177,7 @@ def test(cfg,
     total_time = end - start
     print("total time:",total_time)
     pr = num/test_n
-    print("precision:", pr)
+    print("precision:", pr)  # iou > 0.5 proportion
 
     return iou, loss_o.sum(), loss_o[0], loss_o[1]
            

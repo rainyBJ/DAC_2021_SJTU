@@ -29,7 +29,7 @@ void ReOrg(
     const unsigned K = 2;
 	ap_uint<K*K*IN_CH*IN_BIT> result = 0;
 	unsigned k_cnt  = 0;
-	unsigned ch_cnt = 0;
+	unsigned ch_cnt = 0;  // c_in iter cnt
     unsigned ITERATION = IN_ROW * IN_COL * IN_CH / IN_CH_PARA;
 
 	for (unsigned rep = 0; rep < (ITERATION << reps); rep++) {
@@ -39,10 +39,10 @@ void ReOrg(
 		result( ((k_cnt*IN_CH + (ch_cnt+1)*IN_CH_PARA)*IN_BIT -1), ((k_cnt*IN_CH + ch_cnt*IN_CH_PARA)*IN_BIT) ) = temp_in;
 		//same as the shift register replacement order
 
-		k_cnt++;
+		k_cnt++;  // first dim of input data is k*k
         if(k_cnt == K*K) {
 			k_cnt = 0;
-			ch_cnt++;
+			ch_cnt++;  // second dim of input data is c_int iters
 		}
 
 		if(ch_cnt == (IN_CH / IN_CH_PARA) ){

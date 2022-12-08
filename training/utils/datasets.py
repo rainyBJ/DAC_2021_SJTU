@@ -41,7 +41,7 @@ def analyze_xml(file_path):
     bb_width = (xmax - xmin) / img_width
     bb_height = (ymax - ymin) / img_height
 
-    return np.array([[0, x, y, bb_width, bb_height]], dtype='float32')
+    return np.array([[0, x, y, bb_width, bb_height]], dtype='float32')  # [index, cls, x, y, w, h]
 
 # Get orientation exif tag
 for orientation in ExifTags.TAGS.keys():
@@ -467,7 +467,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         return torch.from_numpy(img), labels_out, img_path, shapes
 
     @staticmethod
-    def collate_fn(batch):
+    def collate_fn(batch):  # collate function 提供给模型训练的数据组织形式
         img, label, path, shapes = zip(*batch)  # transposed
         for i, l in enumerate(label):
             l[:, 0] = i  # add target image index for build_targets()

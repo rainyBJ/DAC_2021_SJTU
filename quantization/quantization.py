@@ -59,8 +59,8 @@ def bn_act_w_bias_float(gamma, beta, mean, var, eps):
 def bn_act_quantize_int(gamma, beta, mean, var, eps, w_bit=2, in_bit=4, out_bit=4, l_shift=4):
     # 先计算出等价的w和b
     w, b = bn_act_w_bias_float(gamma, beta, mean, var, eps)
-
-    n = 2**(w_bit - 1 + in_bit + l_shift) / ((2 ** (w_bit-1) - 1) * (2 ** in_bit - 1))
+    # 将中间数据转到这个尺度上 2^(l_left+w_bit+in_bit−1) ∗ (2^out_bit−1)
+    n = 2 ** (w_bit - 1 + in_bit + l_shift) / ((2 ** (w_bit-1) - 1) * (2 ** in_bit - 1))
     inc_q = (2 ** out_bit - 1) * n * w 
     bias_q = (2 ** (w_bit-1) - 1) * (2 ** in_bit - 1) * (2 ** out_bit - 1) * n * b
     inc_q = np.round(inc_q).astype(np.int32)

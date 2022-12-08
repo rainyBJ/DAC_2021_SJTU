@@ -29,16 +29,16 @@ void Shift_Register_2O(
 
     // #IN_CH iteration
     const unsigned IN_CH_ITER = IN_CH / IN_CH_PARA;
-	// #shift down
+	// #shift down, steps for kernel
 	const unsigned ROW_STEPS = (IN_ROW-K) / S + 1;
 	// #shift right
-	const unsigned COL_STEPS = ((IN_COL-K) / S + 1) / 2;
+	const unsigned COL_STEPS = ((IN_COL-K) / S + 1) / 2;  // every time emit 2 output data
 
 	// use BRAM to imitate the behavior of the shift register 
     //shift register size ((K - 1) * IN_COL + K + S) * IN_CH_ITER
     //shift right first
     //TO-DO: shift down first better 
-	const unsigned BUF_SIZE = ((K - 1) * IN_COL + K + S) * IN_CH_ITER;
+	const unsigned BUF_SIZE = ((K - 1) * IN_COL + K + S) * IN_CH_ITER;  // sliding window, read first (k - 1) lines & (k + s) data  points in line_k, we get the first 2 conv window datas
 	ap_uint<IN_CH_PARA*IN_BIT> shift_reg[BUF_SIZE];
 #pragma HLS RESOURCE variable shift_reg core=RAM_2P
 
@@ -102,11 +102,11 @@ void Shift_Register_2O(
 					} 
 				else {
 					// just shift right to the end
-					buf_len = buf_len - ((S-1) * IN_COL + (K + S)) * IN_CH_ITER;
+					buf_len = buf_len - ((S-1) * IN_COL + (K + S)) * IN_CH_ITER;  // the last 2 windows, the snake run for (k + s) step
 					}
 				} 
 			else {
-				buf_len -= (S * 2) * IN_CH_ITER;
+				buf_len -= (S * 2) * IN_CH_ITER;  // intermediate windows, the snake run for (2 * s) step
 				}
 		}
 	}
@@ -154,7 +154,7 @@ void Shift_Register_1O(
 	unsigned right_slid = 0;
 	unsigned down_slid = 0;
     
-	// total iteration , i.e. #input data
+	// total iteration , i.e. #input data = IN_ROW*IN_COL(data points) * IN_CH_ITER(each point we need such iters)
 	for(unsigned rep=0; rep < ((IN_ROW*IN_COL*IN_CH_ITER) << reps); rep ++) {
 		// write data to shift reg and shift
 		if(buf_len < BUF_SIZE) {
@@ -177,7 +177,7 @@ void Shift_Register_1O(
 					for(unsigned j=0; j < K; j ++) {
 #pragma HLS PIPELINE II = 1
 					// find the correct data (buf_pointer point to the oldest data)
-					unsigned temp_pointer = (buf_pointer + (i * IN_COL * IN_CH_ITER) + (j * IN_CH_ITER) + c);
+					unsigned temp_pointer = (buf_pointer + (i * IN_COL * IN_CH_ITER) + (j * IN_CH_ITER) + c);  // data shape [c, k, k]
 
 					if(temp_pointer >= BUF_SIZE) {
 						temp_pointer -= BUF_SIZE;

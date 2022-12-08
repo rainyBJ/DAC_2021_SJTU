@@ -38,7 +38,7 @@ using namespace std;
 void write_data(const char *path, char *ptr, unsigned int size);
 #endif
 
-void UltraNet_Bypass(stream<my_ap_axis >& in, stream<my_ap_axis >& out, const unsigned int reps) { //reps = log2(batch size)
+void UltraNet_Bypass(stream<my_ap_axis >& in, stream<my_ap_axis >& out, const unsigned int reps) {  // reps = log2(batch size), change bs to left-shift with reps
 #pragma HLS INTERFACE axis register both port=out
 #pragma HLS INTERFACE axis register both port=in
 #pragma HLS INTERFACE s_axilite port=reps bundle=control
@@ -86,13 +86,13 @@ void UltraNet_Bypass(stream<my_ap_axis >& in, stream<my_ap_axis >& out, const un
 // pre process
     const unsigned int num_per_rep = 360 * 640 * 3 * 8 / 64;
 
-    stream<ap_uint<64> > in_stream_extract("in_stream_extract");
+    stream<ap_uint<64> > in_stream_extract("in_stream_extract");  // class template, stream<data_type> implementation(its name)
 #pragma HLS STREAM variable=in_stream_extract depth=16 dim=1
-	ExtractPixels<64, num_per_rep> (in, in_stream_extract, reps);
+	ExtractPixels<64, num_per_rep> (in, in_stream_extract, reps);  // function template, extract data(ap_uint64) from my_ap_axis
 
     stream<ap_uint<64 * 3> > in_stream0("in_stream0");
 #pragma HLS STREAM variable=in_stream0 depth=16 dim=1
-    StreamingDataWidthConverter_Batch<64, 64 * 3, num_per_rep>(in_stream_extract, in_stream0, reps);
+    StreamingDataWidthConverter_Batch<64, 64 * 3, num_per_rep>(in_stream_extract, in_stream0, reps);  // convert data width from 64 to 64*3. useless operation?
 
 	stream<ap_uint<CONV_0_IN_BIT * CONV_0_IFM_CH> > in_stream1("in_stream1");
 #pragma HLS STREAM variable=in_stream1 depth=16 dim=1
